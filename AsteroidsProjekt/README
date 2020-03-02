@@ -1,2 +1,2 @@
 program spustit v IDEA
-com/company/obj -> display -> run 
+com/company/obj -> main -> Main.java -> run 
