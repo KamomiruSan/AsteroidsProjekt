@@ -1,84 +1,121 @@
-package com.company.obj;
+package com.company.game;
 
-import javax.swing.*;
-import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+
+import java.awt.Polygon;
 import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
-import java.awt.Graphics;
-import java.security.Key;
+public class Ship extends Obj {
+    
+    public double vx, vy;
+    public boolean accelerating;
+    private long shotTime;
+    private long unhittableStartTime;
+    private long hittedStartTime;
 
-public class Ship extends JPanel implements ActionListener, KeyListener {
-
-
-    Timer tm = new Timer(5, this);
-    int x = 0, y = 0, velX = 0, velY = 0;
-
-    public Ship() {
-        tm.start();
-        addKeyListener(this);
-        setFocusable(true);
-        setFocusTraversalKeysEnabled(false);
+    public Ship(AsteroidsGame game) {
+        super(game);
+        setShape();
+        visible = false;
     }
-
-    public void paintComponent(Graphics g) {
-        super.paintComponent(g);
-        g.setColor(Color.RED);
-        g.fillRect(x, y, 10, 10);
-    }
-
-    @Override
-    public void actionPerformed(ActionEvent e) {
-        if(x < 0){
-            velX = 0;
-            x = 580 ;
-        }
-        if(x > 580){
-            velX = 0;
-            x = 0;
-        }
-        if(y < 0){
-            velY = 0;
-            y = 580;
-        }
-        if(y > 580){
-            velY = 0;
-            y = 0;
-        }
-        x = x + velX;
-        y = y + velY;
-        repaint();
-    }
-
-
-    public void keyPressed(KeyEvent e) {
-        int c = e.getKeyCode();
-        if (c == KeyEvent.VK_LEFT) { //pohyb
-            velX = -1;
-            velY = 0;
-        }
-        if (c == KeyEvent.VK_UP) {
-            velX = 0;
-            velY = -1;
-        }
-        if (c == KeyEvent.VK_RIGHT) {
-            velX = 1;
-            velY = 0;
-        }
-        if (c == KeyEvent.VK_DOWN) {
-            velX = 0;
-            velY = 1;
-        }
-
+    
+    private void setShape() {
+        Polygon shipShape = new Polygon();
+        shipShape.addPoint(10, 0);
+        shipShape.addPoint(-10, 5);
+        shipShape.addPoint(-10, -5);
+        shape = shipShape;
     }
 
     @Override
-    public void keyReleased(KeyEvent e) {
+    public void updatePlaying() {
+        long currentTime = System.currentTimeMillis();
+        
+        if (accelerating = Keyboard.keyDown[KeyEvent.VK_UP]) { // accelerating ?
+            vx += 0.25 * Math.cos(angle);
+            vy += 0.25 * Math.sin(angle);
+        }
+        if (Keyboard.keyDown[KeyEvent.VK_LEFT]) {
+            angle -= 0.1;
+        }
+        else if (Keyboard.keyDown[KeyEvent.VK_RIGHT]) {
+            angle += 0.1;
+        }
+        
+        boolean shotKeyPressed = Keyboard.keyDown[KeyEvent.VK_SPACE] || true; 
+        if (shotKeyPressed && (currentTime - shotTime > 100)) {
+            game.shot(x, y, angle);
+            shotTime = currentTime;
+        }
+        
+        vx = vx > 2 ? 2 : vx;
+        vy = vy > 2 ? 2 : vy;
+        x += vx;
+        y += vy;
+        
+        x = x < -10 ? game.getWidth() : x;
+        x = x > game.getWidth() + 10 ? -10 : x;
+        y = y < -10 ? game.getHeight() : y;
+        y = y > game.getHeight() + 10 ? -10 : y;
+        
+        if (currentTime - unhittableStartTime < 3000) {
+            visible = !visible;
+        }
+        else {
+            visible = true;
+            Asteroid hittedAsteroid = (Asteroid) game.checkCollision(this, Asteroid.class);
+            if (hittedAsteroid != null) {
+                game.showExplosion(x, y);
+                game.addScore(AsteroidsGame.ASTEROID_SCORE_TABLE[hittedAsteroid.size]);
+                game.hit();
+                hittedAsteroid.hit();
+                return;
+            }
+            
+            Saucer hittedSaucer = (Saucer) game.checkCollision(this, Saucer.class);
+            if (hittedSaucer != null) {
+                game.showExplosion(x, y);
+                game.addScore(AsteroidsGame.SAUCER_SCORE_TABLE[hittedSaucer.size]);
+                game.hit();
+                hittedSaucer.hit();
+                return;
+            }
+
+            SaucerShot hittedSaucerShot = (SaucerShot) game.checkCollision(this, SaucerShot.class);
+            if (hittedSaucerShot != null) {
+                game.showExplosion(x, y);
+                game.hit();
+                hittedSaucerShot.hit();
+                return;
+            }
+        }
+        if (game.checkAllObjectsDestroyed(Asteroid.class)) {
+            unhittableStartTime = System.currentTimeMillis();
+            game.createAsteroids();
+        }
     }
 
     @Override
-    public void keyTyped(KeyEvent e) {
+    public void updateHitted() {
+        if (System.currentTimeMillis() - hittedStartTime > 3000) {
+            game.playNextLife();
+        }
     }
+    
+    @Override
+    public void StateChanged(AsteroidsGame.State newState) {
+        if (newState == AsteroidsGame.State.PLAYING) {
+            x = game.getWidth() / 2;
+            y = game.getHeight() / 2;
+            vx = vy = 0;
+            unhittableStartTime = System.currentTimeMillis();
+            shotTime = unhittableStartTime;
+        }
+        else if (newState == AsteroidsGame.State.HITTED) {
+            hittedStartTime = System.currentTimeMillis();
+            visible = false;
+        }
+        else if (newState == AsteroidsGame.State.GAME_OVER) {
+            visible = false;
+        }
+    }
+    
 }
-
